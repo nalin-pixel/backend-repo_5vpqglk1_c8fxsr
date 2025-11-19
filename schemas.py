@@ -1,48 +1,63 @@
 """
-Database Schemas
+Database Schemas for Turnus Planner
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
-
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Each Pydantic model corresponds to a MongoDB collection (lowercased class name).
 """
-
+from typing import List, Optional, Literal, Dict
 from pydantic import BaseModel, Field
-from typing import Optional
+from datetime import date
 
-# Example schemas (replace with your own):
-
+# -------------------- Auth & Org --------------------
 class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+    username: str = Field(..., description="Unique login username")
+    password_hash: str = Field(..., description="SHA256 hash of password")
+    role: Literal["municipal_admin", "department_leader"] = Field(...)
+    municipality_ids: List[str] = Field(default_factory=list)
+    department_ids: List[str] = Field(default_factory=list)
+    session_token: Optional[str] = None
+    is_active: bool = True
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+class Municipality(BaseModel):
+    name: str
+    description: Optional[str] = None
 
-# Add your own schemas here:
-# --------------------------------------------------
+class Department(BaseModel):
+    municipality_id: str
+    name: str
+    leader_user_id: Optional[str] = None
+    settings: Dict = Field(default_factory=dict)
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+# -------------------- Employees & Preferences --------------------
+class AbsencePeriod(BaseModel):
+    start: date
+    end: date
+    reason: Optional[str] = None
+
+class Employee(BaseModel):
+    department_id: str
+    name: str
+    contract_percentage: int = Field(ge=1, le=200)
+    preferences_text: Optional[str] = None
+    hard_rules: Dict = Field(default_factory=dict)
+    soft_preferences: Dict = Field(default_factory=dict)
+    absences: List[AbsencePeriod] = Field(default_factory=list)
+
+# -------------------- Schedules --------------------
+ShiftType = Literal["D", "E", "N", "OFF"]  # Day, Evening, Night, Off
+
+class DailyAssignment(BaseModel):
+    date: date
+    employee_id: str
+    shift: ShiftType
+
+class Schedule(BaseModel):
+    department_id: str
+    month: int
+    year: int
+    assignments: List[DailyAssignment] = Field(default_factory=list)
+    notes: Optional[str] = None
+
+# -------------------- AI Interpretation --------------------
+class PreferenceInterpretation(BaseModel):
+    hard_rules: Dict = Field(default_factory=dict)
+    soft_preferences: Dict = Field(default_factory=dict)
